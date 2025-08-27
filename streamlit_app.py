@@ -363,8 +363,9 @@ def main():
     if st.sidebar.button("🔍 Test Connections"):
         with st.spinner("Testing system connections..."):
             try:
-                # Test API connections
-                status = st.session_state.api.test_connections()
+                # Test API connections (async)
+                import asyncio
+                status = asyncio.run(st.session_state.api.test_connections())
                 st.sidebar.success("✅ All connections successful!")
                 
                 # Display agent status
@@ -403,32 +404,69 @@ def main():
             if search_query:
                 with st.spinner("🔍 Running brand monitoring analysis..."):
                     try:
-                        # Run the monitoring
-                        results = st.session_state.api.monitor_brand(
-                            query=search_query,
-                            max_results=max_results,
-                            search_depth=search_depth
-                        )
+                        # Run the monitoring (async)
+                        import asyncio
+                        results = asyncio.run(st.session_state.api.monitor_queries(
+                            queries=[search_query],
+                            mode="parallel",
+                            enable_ranking=True,
+                            enable_analytics=True
+                        ))
                         
                         st.session_state.last_results = results
                         st.success("✅ Brand monitoring completed successfully!")
                         
                         # Display results
-                        if results and 'data' in results:
+                        if results and results.get('success', False):
                             st.markdown("### 📈 Results")
                             
-                            # Convert to DataFrame for display
-                            df = pd.DataFrame(results['data'])
-                            st.dataframe(df, use_container_width=True)
+                            # Display summary
+                            if 'summary' in results:
+                                summary = results['summary']
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    st.metric("Total Queries", summary.get('total_queries', 0))
+                                with col2:
+                                    st.metric("Brand Mentions", summary.get('brand_mentions_found', 0))
+                                with col3:
+                                    detection_rate = summary.get('brand_detection_rate', 0)
+                                    st.metric("Detection Rate", f"{detection_rate:.1%}")
+                                with col4:
+                                    execution_time = summary.get('execution_time', 0)
+                                    st.metric("Execution Time", f"{execution_time:.2f}s")
                             
-                            # Download button
-                            csv = df.to_csv(index=False)
-                            st.download_button(
-                                label="📥 Download Results (CSV)",
-                                data=csv,
-                                file_name=f"brand_monitoring_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                                mime="text/csv"
-                            )
+                            # Display detailed results
+                            if 'results' in results:
+                                st.markdown("### 📊 Detailed Results")
+                                for query, query_result in results['results'].items():
+                                    with st.expander(f"Query: {query}"):
+                                        found = "✅ Found" if query_result.get('found') else "❌ Not Found"
+                                        confidence = f"{query_result.get('confidence', 0):.1%}"
+                                        st.write(f"**Status:** {found}")
+                                        st.write(f"**Confidence:** {confidence}")
+                                        
+                                        if 'ranking' in query_result and query_result['ranking']:
+                                            st.write(f"**Ranking:** {query_result['ranking']}")
+                                        
+                                        # Agent breakdown
+                                        if 'agents' in query_result:
+                                            st.write("**Agent Results:**")
+                                            for agent, agent_result in query_result['agents'].items():
+                                                status = "✅" if agent_result.get('status') == 'completed' else "❌"
+                                                st.write(f"{status} {agent}: {agent_result.get('found', False)}")
+                            
+                            # Download results
+                            if results:
+                                import json
+                                json_data = json.dumps(results, indent=2)
+                                st.download_button(
+                                    label="📥 Download Results (JSON)",
+                                    data=json_data,
+                                    file_name=f"brand_monitoring_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                    mime="application/json"
+                                )
+                        else:
+                            st.error(f"❌ Monitoring failed: {results.get('error', 'Unknown error')}")
                         
                     except Exception as e:
                         st.error(f"❌ Monitoring failed: {str(e)}")
@@ -442,30 +480,32 @@ def main():
             results = st.session_state.last_results
             
             # Display metrics
-            if 'metrics' in results:
-                metrics = results['metrics']
+            if results.get('success', False) and 'summary' in results:
+                summary = results['summary']
                 
                 st.markdown(f"""
                 <div class="metric-card">
-                    <strong>Total Mentions:</strong> {metrics.get('total_mentions', 0)}
+                    <strong>Total Queries:</strong> {summary.get('total_queries', 0)}
                 </div>
                 """, unsafe_allow_html=True)
                 
                 st.markdown(f"""
                 <div class="metric-card">
-                    <strong>Positive Mentions:</strong> {metrics.get('positive_mentions', 0)}
+                    <strong>Brand Mentions:</strong> {summary.get('brand_mentions_found', 0)}
                 </div>
                 """, unsafe_allow_html=True)
                 
+                detection_rate = summary.get('brand_detection_rate', 0)
                 st.markdown(f"""
                 <div class="metric-card">
-                    <strong>Negative Mentions:</strong> {metrics.get('negative_mentions', 0)}
+                    <strong>Detection Rate:</strong> {detection_rate:.1%}
                 </div>
                 """, unsafe_allow_html=True)
                 
+                execution_time = summary.get('execution_time', 0)
                 st.markdown(f"""
                 <div class="metric-card">
-                    <strong>Neutral Mentions:</strong> {metrics.get('neutral_mentions', 0)}
+                    <strong>Execution Time:</strong> {execution_time:.2f}s
                 </div>
                 """, unsafe_allow_html=True)
         
