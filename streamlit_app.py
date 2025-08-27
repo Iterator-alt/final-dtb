@@ -143,25 +143,49 @@ def check_streamlit_secrets():
     ]
     
     missing_secrets = []
+    configured_secrets = []
+    
     for secret in required_secrets:
-        if secret not in st.secrets or not st.secrets[secret]:
+        if secret in st.secrets and st.secrets[secret]:
+            configured_secrets.append(secret)
+        else:
             missing_secrets.append(secret)
     
     return {
         "all_configured": len(missing_secrets) == 0,
         "missing_secrets": missing_secrets,
-        "configured_secrets": [s for s in required_secrets if s not in missing_secrets]
+        "configured_secrets": configured_secrets
     }
+
+def debug_secrets():
+    """Debug function to check what secrets are available."""
+    debug_info = {
+        "available_secrets": list(st.secrets.keys()),
+        "secret_lengths": {}
+    }
+    
+    for secret_name in ["OPENAI_API_KEY", "PERPLEXITY_API_KEY", "GEMINI_API_KEY", "GOOGLE_SHEETS_SPREADSHEET_ID", "GOOGLE_SERVICE_ACCOUNT_CREDENTIALS"]:
+        if secret_name in st.secrets:
+            secret_value = st.secrets[secret_name]
+            if isinstance(secret_value, str):
+                debug_info["secret_lengths"][secret_name] = len(secret_value)
+            else:
+                debug_info["secret_lengths"][secret_name] = f"Type: {type(secret_value)}"
+        else:
+            debug_info["secret_lengths"][secret_name] = "Not found"
+    
+    return debug_info
 
 def create_credentials_file():
     """Create credentials.json file from Streamlit secrets."""
     try:
         credentials_json = st.secrets.get("GOOGLE_SERVICE_ACCOUNT_CREDENTIALS", "")
         if credentials_json:
-            # Create temporary credentials file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            # Create credentials file in current directory
+            credentials_path = "credentials.json"
+            with open(credentials_path, 'w') as f:
                 f.write(credentials_json)
-                return f.name
+            return credentials_path
         return None
     except Exception as e:
         st.error(f"Error creating credentials file: {str(e)}")
@@ -169,6 +193,19 @@ def create_credentials_file():
 
 def create_config_from_secrets():
     """Create config.yaml content from Streamlit secrets."""
+    
+    # Validate API keys
+    openai_key = st.secrets.get('OPENAI_API_KEY', '')
+    perplexity_key = st.secrets.get('PERPLEXITY_API_KEY', '')
+    gemini_key = st.secrets.get('GEMINI_API_KEY', '')
+    
+    # Check if keys are properly formatted
+    if not openai_key.startswith('sk-'):
+        st.warning("⚠️ OpenAI API key format may be incorrect (should start with 'sk-')")
+    
+    if not perplexity_key.startswith('pplx-'):
+        st.warning("⚠️ Perplexity API key format may be incorrect (should start with 'pplx-')")
+    
     config_content = f"""# Enhanced DataTobiz Brand Monitoring Configuration (Stage 2)
 # Generated from Streamlit secrets
 
@@ -176,7 +213,7 @@ def create_config_from_secrets():
 llm_configs:
   openai:
     name: "openai"
-    api_key: "{st.secrets.get('OPENAI_API_KEY', '')}"
+    api_key: "{openai_key}"
     model: "gpt-3.5-turbo"
     max_tokens: 1000
     temperature: 0.1
@@ -184,7 +221,7 @@ llm_configs:
 
   perplexity:
     name: "perplexity"
-    api_key: "{st.secrets.get('PERPLEXITY_API_KEY', '')}"
+    api_key: "{perplexity_key}"
     model: "sonar"
     max_tokens: 1000
     temperature: 0.1
@@ -192,7 +229,7 @@ llm_configs:
 
   gemini:
     name: "gemini"
-    api_key: "{st.secrets.get('GEMINI_API_KEY', '')}"
+    api_key: "{gemini_key}"
     model: "gemini-pro"
     max_tokens: 1000
     temperature: 0.1
@@ -614,6 +651,47 @@ def main():
                             
                     except Exception as e:
                         st.error(f"❌ Health check failed: {str(e)}")
+            
+            # Debug section
+            with st.expander("🔧 Debug Information"):
+                st.markdown("#### 🔍 Secrets Debug")
+                debug_info = debug_secrets()
+                
+                st.markdown("**Available Secrets:**")
+                for secret in debug_info["available_secrets"]:
+                    st.write(f"- {secret}")
+                
+                st.markdown("**Secret Status:**")
+                for secret_name, length_info in debug_info["secret_lengths"].items():
+                    if length_info == "Not found":
+                        st.markdown(f"- ❌ {secret_name}: Not configured")
+                    else:
+                        st.markdown(f"- ✅ {secret_name}: {length_info}")
+                
+                # Configuration debug
+                st.markdown("#### ⚙️ Configuration Debug")
+                if st.session_state.api and st.session_state.api.settings:
+                    st.write("**Settings loaded:** ✅")
+                    st.write(f"**Target brand:** {st.session_state.api.settings.brand.target_brand}")
+                    st.write(f"**Spreadsheet ID:** {st.session_state.api.settings.google_sheets.spreadsheet_id}")
+                else:
+                    st.write("**Settings loaded:** ❌")
+                
+                # Workflow debug
+                st.markdown("#### 🔄 Workflow Debug")
+                if st.session_state.api and st.session_state.api.workflow:
+                    st.write("**Workflow initialized:** ✅")
+                    if st.session_state.api.workflow.agents:
+                        st.write(f"**Available agents:** {list(st.session_state.api.workflow.agents.keys())}")
+                    else:
+                        st.write("**Available agents:** None")
+                    
+                    if st.session_state.api.workflow.storage_manager:
+                        st.write("**Storage manager:** ✅")
+                    else:
+                        st.write("**Storage manager:** ❌")
+                else:
+                    st.write("**Workflow initialized:** ❌")
     
     with tab3:
         st.markdown("### 📈 Analytics Dashboard")
