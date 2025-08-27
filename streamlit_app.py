@@ -364,6 +364,10 @@ def create_api():
         # Store the config path for later cleanup
         api._temp_config_path = config_path
         
+        # Force reload Google Sheets config from environment variables
+        if api.settings:
+            api.settings.reload_google_sheets_config()
+        
         return api
     except Exception as e:
         st.error(f"Failed to create API instance: {str(e)}")

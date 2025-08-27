@@ -249,7 +249,18 @@ class Settings(BaseSettings):
         if not self.google_sheets.spreadsheet_id:
             env_spreadsheet_id = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID") or os.getenv("GOOGLE_SPREADSHEET_ID")
             if env_spreadsheet_id:
-                self.google_sheets.spreadsheet_id = env_spreadsheet_id
+                # Create a new GoogleSheetsConfig with the correct spreadsheet_id
+                self.google_sheets = GoogleSheetsConfig(
+                    spreadsheet_id=env_spreadsheet_id,
+                    worksheet_name=self.google_sheets.worksheet_name,
+                    credentials_file=self.google_sheets.credentials_file,
+                    auto_setup_headers=self.google_sheets.auto_setup_headers,
+                    batch_size=self.google_sheets.batch_size,
+                    enable_validation=self.google_sheets.enable_validation
+                )
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Updated Google Sheets config with spreadsheet_id: {env_spreadsheet_id}")
     
     def _process_llm_configs(self, config_data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         """Process LLM configurations with environment variable support."""
@@ -336,6 +347,15 @@ class Settings(BaseSettings):
             os.getenv("GOOGLE_SPREADSHEET_ID") or         # Alternative name
             yaml_gs.get("spreadsheet_id", "")             # From YAML config
         )
+        
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Google Sheets Config Debug:")
+        logger.info(f"  GOOGLE_SHEETS_SPREADSHEET_ID: {os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', 'Not found')}")
+        logger.info(f"  GOOGLE_SPREADSHEET_ID: {os.getenv('GOOGLE_SPREADSHEET_ID', 'Not found')}")
+        logger.info(f"  YAML spreadsheet_id: {yaml_gs.get('spreadsheet_id', 'Not found')}")
+        logger.info(f"  Final spreadsheet_id: {spreadsheet_id}")
         
         return GoogleSheetsConfig(
             spreadsheet_id=spreadsheet_id,
@@ -430,6 +450,24 @@ class Settings(BaseSettings):
             "gemini_agent": bool(self.gemini_api_key),
             "enhanced_brand_detection": True,  # Always available in Stage 2
         }
+    
+    def reload_google_sheets_config(self):
+        """Force reload Google Sheets configuration from environment variables."""
+        env_spreadsheet_id = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID") or os.getenv("GOOGLE_SPREADSHEET_ID")
+        if env_spreadsheet_id:
+            self.google_sheets = GoogleSheetsConfig(
+                spreadsheet_id=env_spreadsheet_id,
+                worksheet_name=self.google_sheets.worksheet_name,
+                credentials_file=self.google_sheets.credentials_file,
+                auto_setup_headers=self.google_sheets.auto_setup_headers,
+                batch_size=self.google_sheets.batch_size,
+                enable_validation=self.google_sheets.enable_validation
+            )
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Reloaded Google Sheets config with spreadsheet_id: {env_spreadsheet_id}")
+            return True
+        return False
 
 # Global settings instance
 settings = None
