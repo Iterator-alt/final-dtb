@@ -279,7 +279,7 @@ class Settings(BaseSettings):
             merged_llm_configs["perplexity"] = {
                 "name": "perplexity",
                 "api_key": perplexity_key,
-                "model": yaml_ppx.get("model", "llama-3.1-sonar-small-128k-online"),
+                "model": yaml_ppx.get("model", "sonar-small-online"),
                 "max_tokens": yaml_ppx.get("max_tokens", 1000),
                 "temperature": yaml_ppx.get("temperature", 0.1),
                 "timeout": yaml_ppx.get("timeout", 30),
@@ -289,7 +289,7 @@ class Settings(BaseSettings):
             merged_llm_configs["perplexity"] = {
                 "name": "perplexity",
                 "api_key": yaml_ppx["api_key"],
-                "model": yaml_ppx.get("model", "llama-3.1-sonar-small-128k-online"),
+                "model": yaml_ppx.get("model", "sonar-small-online"),
                 "max_tokens": yaml_ppx.get("max_tokens", 1000),
                 "temperature": yaml_ppx.get("temperature", 0.1),
                 "timeout": yaml_ppx.get("timeout", 30),

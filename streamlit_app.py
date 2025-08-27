@@ -198,6 +198,8 @@ def create_config_from_secrets():
     openai_key = st.secrets.get('OPENAI_API_KEY', '')
     perplexity_key = st.secrets.get('PERPLEXITY_API_KEY', '')
     gemini_key = st.secrets.get('GEMINI_API_KEY', '')
+    spreadsheet_id = st.secrets.get('GOOGLE_SHEETS_SPREADSHEET_ID', '')
+    credentials_json = st.secrets.get('GOOGLE_SERVICE_ACCOUNT_CREDENTIALS', '')
     
     # Check if keys are properly formatted
     if not openai_key.startswith('sk-'):
@@ -205,6 +207,21 @@ def create_config_from_secrets():
     
     if not perplexity_key.startswith('pplx-'):
         st.warning("⚠️ Perplexity API key format may be incorrect (should start with 'pplx-')")
+    
+    # Check Google Sheets configuration
+    if not spreadsheet_id:
+        st.warning("⚠️ Google Sheets Spreadsheet ID is missing")
+    
+    if not credentials_json:
+        st.warning("⚠️ Google Service Account credentials are missing")
+    else:
+        try:
+            import json
+            creds_data = json.loads(credentials_json)
+            if 'client_email' not in creds_data:
+                st.warning("⚠️ Google Service Account credentials appear to be invalid (missing client_email)")
+        except json.JSONDecodeError:
+            st.warning("⚠️ Google Service Account credentials are not valid JSON")
     
     config_content = f"""# Enhanced DataTobiz Brand Monitoring Configuration (Stage 2)
 # Generated from Streamlit secrets
@@ -222,7 +239,7 @@ llm_configs:
   perplexity:
     name: "perplexity"
     api_key: "{perplexity_key}"
-    model: "sonar"
+    model: "sonar-small-online"
     max_tokens: 1000
     temperature: 0.1
     timeout: 30
@@ -237,7 +254,7 @@ llm_configs:
 
 # Google Sheets Configuration
 google_sheets:
-  spreadsheet_id: "{st.secrets.get('GOOGLE_SHEETS_SPREADSHEET_ID', '')}"
+  spreadsheet_id: "{spreadsheet_id}"
   worksheet_name: "Brand_Monitoring_New"
   credentials_file: "credentials.json"
   auto_setup_headers: true
