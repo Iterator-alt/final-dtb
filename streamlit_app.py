@@ -274,8 +274,8 @@ enhanced_brand:
     return config_content
 
 @st.cache_resource
-def initialize_api():
-    """Initialize the brand monitoring API."""
+def create_api():
+    """Create the brand monitoring API instance."""
     try:
         # Check secrets first
         secrets_status = check_streamlit_secrets()
@@ -295,7 +295,7 @@ def initialize_api():
             st.error("❌ Failed to create credentials file from secrets.")
             return None
         
-        # Initialize API with temporary config
+        # Create API with temporary config
         api = EnhancedBrandMonitoringAPI(config_path)
         
         # Clean up temporary files
@@ -308,6 +308,14 @@ def initialize_api():
     except Exception as e:
         st.error(f"Failed to create API instance: {str(e)}")
         return None
+
+async def initialize_api_async(api):
+    """Initialize the API asynchronously."""
+    try:
+        return await api.initialize()
+    except Exception as e:
+        st.error(f"Failed to initialize API: {str(e)}")
+        return False
 
 def main():
     """Main application function."""
@@ -344,12 +352,21 @@ def main():
         
         return
     
-    # Initialize API
+    # Create API instance
     if st.session_state.api is None:
-        with st.spinner("🚀 Initializing Brand Monitoring System..."):
-            st.session_state.api = initialize_api()
+        st.session_state.api = create_api()
     
     if st.session_state.api is None:
+        st.error("Failed to create the system. Please check your configuration.")
+        return
+    
+    # Initialize API if not already initialized
+    if not st.session_state.initialized:
+        with st.spinner("🚀 Initializing Brand Monitoring System..."):
+            import asyncio
+            st.session_state.initialized = asyncio.run(initialize_api_async(st.session_state.api))
+    
+    if not st.session_state.initialized:
         st.error("Failed to initialize the system. Please check your configuration.")
         return
     
@@ -359,164 +376,275 @@ def main():
     # System Status
     st.sidebar.markdown("### 📊 System Status")
     
-    # Test connections
-    if st.sidebar.button("🔍 Test Connections"):
-        with st.spinner("Testing system connections..."):
-            try:
-                # Test API connections (async)
+    # Initialize button
+    if not st.session_state.initialized:
+        if st.sidebar.button("🚀 Initialize System", type="primary"):
+            with st.spinner("Initializing system..."):
                 import asyncio
-                status = asyncio.run(st.session_state.api.test_connections())
-                st.sidebar.success("✅ All connections successful!")
-                
-                # Display agent status
-                st.sidebar.markdown("### 🤖 Agent Status")
-                for agent, is_healthy in status.items():
-                    if is_healthy:
-                        st.sidebar.markdown(f'<span class="agent-status agent-online">✅ {agent}</span>', unsafe_allow_html=True)
-                    else:
-                        st.sidebar.markdown(f'<span class="agent-status agent-offline">❌ {agent}</span>', unsafe_allow_html=True)
+                st.session_state.initialized = asyncio.run(initialize_api_async(st.session_state.api))
+                if st.session_state.initialized:
+                    st.sidebar.success("✅ System initialized!")
+                    st.rerun()
+                else:
+                    st.sidebar.error("❌ Initialization failed!")
+    
+    # System health status
+    if st.session_state.initialized:
+        st.sidebar.markdown('<span class="agent-status agent-online">✅ System Online</span>', unsafe_allow_html=True)
+        
+        # Test connections
+        if st.sidebar.button("🔍 Test Connections"):
+            with st.spinner("Testing system connections..."):
+                try:
+                    # Test API connections (async)
+                    import asyncio
+                    status = asyncio.run(st.session_state.api.test_connections())
+                    
+                    if status.get('success', False):
+                        st.sidebar.success("✅ All connections successful!")
                         
-            except Exception as e:
-                st.sidebar.error(f"❌ Connection test failed: {str(e)}")
+                        # Display agent status
+                        st.sidebar.markdown("### 🤖 Agent Status")
+                        for agent_name, agent_info in status.get('agents', {}).items():
+                            if agent_info.get('healthy', False):
+                                st.sidebar.markdown(f'<span class="agent-status agent-online">✅ {agent_name}</span>', unsafe_allow_html=True)
+                            else:
+                                st.sidebar.markdown(f'<span class="agent-status agent-offline">❌ {agent_name}</span>', unsafe_allow_html=True)
+                        
+                        # Display storage status
+                        st.sidebar.markdown("### 💾 Storage Status")
+                        storage_info = status.get('storage', {}).get('google_sheets', {})
+                        if storage_info.get('available', False):
+                            st.sidebar.markdown('<span class="agent-status agent-online">✅ Google Sheets</span>', unsafe_allow_html=True)
+                        else:
+                            st.sidebar.markdown('<span class="agent-status agent-offline">❌ Google Sheets</span>', unsafe_allow_html=True)
+                        
+                        # Display analytics status
+                        st.sidebar.markdown("### 📊 Analytics Status")
+                        analytics_info = status.get('analytics', {}).get('engine', {})
+                        if analytics_info.get('available', False):
+                            st.sidebar.markdown('<span class="agent-status agent-online">✅ Analytics Engine</span>', unsafe_allow_html=True)
+                        else:
+                            st.sidebar.markdown('<span class="agent-status agent-offline">❌ Analytics Engine</span>', unsafe_allow_html=True)
+                            
+                    else:
+                        st.sidebar.error(f"❌ Connection test failed: {status.get('error', 'Unknown error')}")
+                        
+                except Exception as e:
+                    st.sidebar.error(f"❌ Connection test failed: {str(e)}")
+    else:
+        st.sidebar.markdown('<span class="agent-status agent-offline">❌ System Offline</span>', unsafe_allow_html=True)
     
-    # Main content area
-    col1, col2 = st.columns([2, 1])
+    # Main content area with tabs
+    tab1, tab2, tab3 = st.tabs(["🎯 Brand Monitoring", "📊 System Health", "📈 Analytics"])
     
-    with col1:
+    with tab1:
         st.markdown("### 🎯 Brand Monitoring")
         
-        # Input for search query
-        search_query = st.text_input(
-            "Enter search query for brand monitoring:",
-            placeholder="e.g., 'DataTobiz software development services'",
-            help="Enter a search query to monitor for DataTobiz mentions"
-        )
-        
-        # Search options
-        col1_1, col1_2 = st.columns(2)
-        with col1_1:
-            max_results = st.slider("Max Results", 5, 50, 10)
-        with col1_2:
-            search_depth = st.selectbox("Search Depth", ["Basic", "Comprehensive", "Deep Analysis"])
-        
-        # Run monitoring
-        if st.button("🚀 Start Brand Monitoring", type="primary"):
-            if search_query:
-                with st.spinner("🔍 Running brand monitoring analysis..."):
-                    try:
-                        # Run the monitoring (async)
-                        import asyncio
-                        results = asyncio.run(st.session_state.api.monitor_queries(
-                            queries=[search_query],
-                            mode="parallel",
-                            enable_ranking=True,
-                            enable_analytics=True
-                        ))
-                        
-                        st.session_state.last_results = results
-                        st.success("✅ Brand monitoring completed successfully!")
-                        
-                        # Display results
-                        if results and results.get('success', False):
-                            st.markdown("### 📈 Results")
-                            
-                            # Display summary
-                            if 'summary' in results:
-                                summary = results['summary']
-                                col1, col2, col3, col4 = st.columns(4)
-                                with col1:
-                                    st.metric("Total Queries", summary.get('total_queries', 0))
-                                with col2:
-                                    st.metric("Brand Mentions", summary.get('brand_mentions_found', 0))
-                                with col3:
-                                    detection_rate = summary.get('brand_detection_rate', 0)
-                                    st.metric("Detection Rate", f"{detection_rate:.1%}")
-                                with col4:
-                                    execution_time = summary.get('execution_time', 0)
-                                    st.metric("Execution Time", f"{execution_time:.2f}s")
-                            
-                            # Display detailed results
-                            if 'results' in results:
-                                st.markdown("### 📊 Detailed Results")
-                                for query, query_result in results['results'].items():
-                                    with st.expander(f"Query: {query}"):
-                                        found = "✅ Found" if query_result.get('found') else "❌ Not Found"
-                                        confidence = f"{query_result.get('confidence', 0):.1%}"
-                                        st.write(f"**Status:** {found}")
-                                        st.write(f"**Confidence:** {confidence}")
-                                        
-                                        if 'ranking' in query_result and query_result['ranking']:
-                                            st.write(f"**Ranking:** {query_result['ranking']}")
-                                        
-                                        # Agent breakdown
-                                        if 'agents' in query_result:
-                                            st.write("**Agent Results:**")
-                                            for agent, agent_result in query_result['agents'].items():
-                                                status = "✅" if agent_result.get('status') == 'completed' else "❌"
-                                                st.write(f"{status} {agent}: {agent_result.get('found', False)}")
-                            
-                            # Download results
-                            if results:
-                                import json
-                                json_data = json.dumps(results, indent=2)
-                                st.download_button(
-                                    label="📥 Download Results (JSON)",
-                                    data=json_data,
-                                    file_name=f"brand_monitoring_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                                    mime="application/json"
-                                )
-                        else:
-                            st.error(f"❌ Monitoring failed: {results.get('error', 'Unknown error')}")
-                        
-                    except Exception as e:
-                        st.error(f"❌ Monitoring failed: {str(e)}")
-            else:
-                st.warning("Please enter a search query.")
-    
-    with col2:
-        st.markdown("### 📊 Quick Stats")
-        
-        if st.session_state.last_results:
-            results = st.session_state.last_results
+        if not st.session_state.initialized:
+            st.warning("⚠️ Please initialize the system first using the sidebar button.")
+        else:
+            # Input for search query
+            search_query = st.text_input(
+                "Enter search query for brand monitoring:",
+                placeholder="e.g., 'DataTobiz software development services'",
+                help="Enter a search query to monitor for DataTobiz mentions"
+            )
             
-            # Display metrics
-            if results.get('success', False) and 'summary' in results:
-                summary = results['summary']
-                
-                st.markdown(f"""
-                <div class="metric-card">
-                    <strong>Total Queries:</strong> {summary.get('total_queries', 0)}
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown(f"""
-                <div class="metric-card">
-                    <strong>Brand Mentions:</strong> {summary.get('brand_mentions_found', 0)}
-                </div>
-                """, unsafe_allow_html=True)
-                
-                detection_rate = summary.get('brand_detection_rate', 0)
-                st.markdown(f"""
-                <div class="metric-card">
-                    <strong>Detection Rate:</strong> {detection_rate:.1%}
-                </div>
-                """, unsafe_allow_html=True)
-                
-                execution_time = summary.get('execution_time', 0)
-                st.markdown(f"""
-                <div class="metric-card">
-                    <strong>Execution Time:</strong> {execution_time:.2f}s
-                </div>
-                """, unsafe_allow_html=True)
+            # Search options
+            col1_1, col1_2 = st.columns(2)
+            with col1_1:
+                max_results = st.slider("Max Results", 5, 50, 10)
+            with col1_2:
+                search_depth = st.selectbox("Search Depth", ["Basic", "Comprehensive", "Deep Analysis"])
+            
+            # Run monitoring
+            if st.button("🚀 Start Brand Monitoring", type="primary"):
+                if search_query:
+                    with st.spinner("🔍 Running brand monitoring analysis..."):
+                        try:
+                            # Run the monitoring (async)
+                            import asyncio
+                            results = asyncio.run(st.session_state.api.monitor_queries(
+                                queries=[search_query],
+                                mode="parallel",
+                                enable_ranking=True,
+                                enable_analytics=True
+                            ))
+                            
+                            st.session_state.last_results = results
+                            st.success("✅ Brand monitoring completed successfully!")
+                            
+                            # Display results
+                            if results and results.get('success', False):
+                                st.markdown("### 📈 Results")
+                                
+                                # Display summary
+                                if 'summary' in results:
+                                    summary = results['summary']
+                                    col1, col2, col3, col4 = st.columns(4)
+                                    with col1:
+                                        st.metric("Total Queries", summary.get('total_queries', 0))
+                                    with col2:
+                                        st.metric("Brand Mentions", summary.get('brand_mentions_found', 0))
+                                    with col3:
+                                        detection_rate = summary.get('brand_detection_rate', 0)
+                                        st.metric("Detection Rate", f"{detection_rate:.1%}")
+                                    with col4:
+                                        execution_time = summary.get('execution_time', 0)
+                                        st.metric("Execution Time", f"{execution_time:.2f}s")
+                                
+                                # Display detailed results
+                                if 'results' in results:
+                                    st.markdown("### 📊 Detailed Results")
+                                    for query, query_result in results['results'].items():
+                                        with st.expander(f"Query: {query}"):
+                                            found = "✅ Found" if query_result.get('found') else "❌ Not Found"
+                                            confidence = f"{query_result.get('confidence', 0):.1%}"
+                                            st.write(f"**Status:** {found}")
+                                            st.write(f"**Confidence:** {confidence}")
+                                            
+                                            if 'ranking' in query_result and query_result['ranking']:
+                                                st.write(f"**Ranking:** {query_result['ranking']}")
+                                            
+                                            # Agent breakdown
+                                            if 'agents' in query_result:
+                                                st.write("**Agent Results:**")
+                                                for agent, agent_result in query_result['agents'].items():
+                                                    status = "✅" if agent_result.get('status') == 'completed' else "❌"
+                                                    st.write(f"{status} {agent}: {agent_result.get('found', False)}")
+                                
+                                # Download results
+                                if results:
+                                    import json
+                                    json_data = json.dumps(results, indent=2)
+                                    st.download_button(
+                                        label="📥 Download Results (JSON)",
+                                        data=json_data,
+                                        file_name=f"brand_monitoring_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                        mime="application/json"
+                                    )
+                            else:
+                                st.error(f"❌ Monitoring failed: {results.get('error', 'Unknown error')}")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Monitoring failed: {str(e)}")
+                else:
+                    st.warning("Please enter a search query.")
+    
+    with tab2:
+        st.markdown("### 📊 System Health")
         
-        # System info
-        st.markdown("### ℹ️ System Info")
-        st.markdown(f"""
-        - **Version:** Stage 2 Enhanced
-        - **Agents:** OpenAI, Perplexity, Gemini
-        - **Storage:** Google Sheets
-        - **Analytics:** Enabled
-        """)
+        if not st.session_state.initialized:
+            st.warning("⚠️ Please initialize the system first using the sidebar button.")
+        else:
+            # System health overview
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 🔧 System Status")
+                st.markdown('<span class="agent-status agent-online">✅ System Online</span>', unsafe_allow_html=True)
+                
+                # Agent status
+                st.markdown("#### 🤖 Agent Status")
+                if st.session_state.api.workflow and st.session_state.api.workflow.agents:
+                    for agent_name in st.session_state.api.workflow.agents.keys():
+                        st.markdown(f'<span class="agent-status agent-online">✅ {agent_name}</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<span class="agent-status agent-offline">❌ No agents available</span>', unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown("#### 💾 Storage Status")
+                if st.session_state.api.workflow and st.session_state.api.workflow.storage_manager:
+                    st.markdown('<span class="agent-status agent-online">✅ Google Sheets Connected</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<span class="agent-status agent-offline">❌ Storage not configured</span>', unsafe_allow_html=True)
+                
+                st.markdown("#### 📊 Analytics Status")
+                if st.session_state.api.workflow and st.session_state.api.workflow.analytics_engine:
+                    st.markdown('<span class="agent-status agent-online">✅ Analytics Engine Ready</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<span class="agent-status agent-offline">❌ Analytics not available</span>', unsafe_allow_html=True)
+            
+            # Detailed health check
+            if st.button("🔍 Run Detailed Health Check"):
+                with st.spinner("Running comprehensive health check..."):
+                    try:
+                        import asyncio
+                        status = asyncio.run(st.session_state.api.test_connections())
+                        
+                        if status.get('success', False):
+                            st.success("✅ All systems operational!")
+                            
+                            # Display detailed status
+                            st.markdown("#### 📋 Detailed Status Report")
+                            
+                            # Agents
+                            st.markdown("**🤖 Agents:**")
+                            for agent_name, agent_info in status.get('agents', {}).items():
+                                if agent_info.get('healthy', False):
+                                    st.markdown(f"- ✅ {agent_name}: {agent_info.get('model', 'Unknown')}")
+                                else:
+                                    st.markdown(f"- ❌ {agent_name}: {agent_info.get('error', 'Failed')}")
+                            
+                            # Storage
+                            st.markdown("**💾 Storage:**")
+                            storage_info = status.get('storage', {}).get('google_sheets', {})
+                            if storage_info.get('available', False):
+                                st.markdown(f"- ✅ Google Sheets: {storage_info.get('records_found', 'Unknown')} records")
+                            else:
+                                st.markdown(f"- ❌ Google Sheets: {storage_info.get('error', 'Not available')}")
+                            
+                            # Analytics
+                            st.markdown("**📊 Analytics:**")
+                            analytics_info = status.get('analytics', {}).get('engine', {})
+                            if analytics_info.get('available', False):
+                                st.markdown("- ✅ Analytics Engine: Ready")
+                            else:
+                                st.markdown(f"- ❌ Analytics Engine: {analytics_info.get('reason', 'Not available')}")
+                            
+                            # Stage 2 features
+                            st.markdown("**🎯 Stage 2 Features:**")
+                            stage2_features = status.get('stage2_features', {})
+                            for feature, enabled in stage2_features.items():
+                                status_icon = "✅" if enabled else "❌"
+                                st.markdown(f"- {status_icon} {feature}")
+                        else:
+                            st.error(f"❌ Health check failed: {status.get('error', 'Unknown error')}")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Health check failed: {str(e)}")
+    
+    with tab3:
+        st.markdown("### 📈 Analytics Dashboard")
+        
+        if not st.session_state.initialized:
+            st.warning("⚠️ Please initialize the system first using the sidebar button.")
+        else:
+            st.info("📊 Analytics dashboard will show historical data and trends.")
+            
+            # Display last results if available
+            if st.session_state.last_results:
+                st.markdown("#### 📊 Last Monitoring Results")
+                results = st.session_state.last_results
+                
+                if results.get('success', False) and 'summary' in results:
+                    summary = results['summary']
+                    
+                    # Metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Queries", summary.get('total_queries', 0))
+                    with col2:
+                        st.metric("Brand Mentions", summary.get('brand_mentions_found', 0))
+                    with col3:
+                        detection_rate = summary.get('brand_detection_rate', 0)
+                        st.metric("Detection Rate", f"{detection_rate:.1%}")
+                    with col4:
+                        execution_time = summary.get('execution_time', 0)
+                        st.metric("Execution Time", f"{execution_time:.2f}s")
+    
+
     
     # Footer
     st.markdown("---")
