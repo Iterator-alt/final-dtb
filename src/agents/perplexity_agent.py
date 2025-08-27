@@ -32,7 +32,7 @@ class PerplexityAgent(BaseAgent):
         # Perplexity API configuration
         self.api_base = "https://api.perplexity.ai"
         self.api_key = config.api_key
-        self.model = config.model or "sonar-small-online"
+        self.model = config.model or "sonar"
         self.max_tokens = config.max_tokens
         self.temperature = config.temperature
         
@@ -285,14 +285,14 @@ def create_perplexity_agent(name: str = "perplexity", config: Dict[str, Any] = N
     if isinstance(config, dict):
         # Extract values from config dictionary
         api_key = config.get("api_key", "")
-        model = config.get("model", "sonar-small-online")
+        model = config.get("model", "sonar")
         max_tokens = config.get("max_tokens", 1000)
         temperature = config.get("temperature", 0.1)
         timeout = config.get("timeout", 30)
     else:
         # Fallback to environment variables
         api_key = settings.perplexity_api_key
-        model = "sonar-small-online"
+        model = "sonar"
         max_tokens = 1000
         temperature = 0.1
         timeout = 30

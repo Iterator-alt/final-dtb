@@ -208,6 +208,10 @@ def create_config_from_secrets():
     if not perplexity_key.startswith('pplx-'):
         st.warning("⚠️ Perplexity API key format may be incorrect (should start with 'pplx-')")
     
+    # Check if Perplexity key is valid length
+    if perplexity_key and len(perplexity_key) < 20:
+        st.warning("⚠️ Perplexity API key appears to be too short")
+    
     # Check Google Sheets configuration
     if not spreadsheet_id:
         st.warning("⚠️ Google Sheets Spreadsheet ID is missing")
@@ -242,7 +246,7 @@ llm_configs:
   perplexity:
     name: "perplexity"
     api_key: "{perplexity_key}"
-    model: "sonar-small-online"
+    model: "sonar"
     max_tokens: 1000
     temperature: 0.1
     timeout: 30
