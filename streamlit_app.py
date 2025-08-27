@@ -211,6 +211,7 @@ def create_config_from_secrets():
     # Check Google Sheets configuration
     if not spreadsheet_id:
         st.warning("⚠️ Google Sheets Spreadsheet ID is missing")
+        st.info("💡 The spreadsheet ID is the long string in your Google Sheets URL (e.g., 1u6xIltHLEO-cfrFwCNVFL2726nRwaAMD90aqAbZKjgQ)")
     
     if not credentials_json:
         st.warning("⚠️ Google Service Account credentials are missing")
@@ -220,6 +221,8 @@ def create_config_from_secrets():
             creds_data = json.loads(credentials_json)
             if 'client_email' not in creds_data:
                 st.warning("⚠️ Google Service Account credentials appear to be invalid (missing client_email)")
+            else:
+                st.success(f"✅ Google Service Account configured for: {creds_data['client_email']}")
         except json.JSONDecodeError:
             st.warning("⚠️ Google Service Account credentials are not valid JSON")
     
@@ -352,11 +355,8 @@ def create_api():
         # Create API with temporary config
         api = EnhancedBrandMonitoringAPI(config_path)
         
-        # Clean up temporary files
-        try:
-            os.unlink(config_path)
-        except:
-            pass
+        # Store the config path for later cleanup
+        api._temp_config_path = config_path
         
         return api
     except Exception as e:
@@ -366,7 +366,17 @@ def create_api():
 async def initialize_api_async(api):
     """Initialize the API asynchronously."""
     try:
-        return await api.initialize()
+        result = await api.initialize()
+        
+        # Clean up temporary config file after initialization
+        if hasattr(api, '_temp_config_path'):
+            try:
+                os.unlink(api._temp_config_path)
+                delattr(api, '_temp_config_path')
+            except:
+                pass
+        
+        return result
     except Exception as e:
         st.error(f"Failed to initialize API: {str(e)}")
         return False
