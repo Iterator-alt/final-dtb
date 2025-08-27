@@ -216,6 +216,8 @@ def create_config_from_secrets():
     if not spreadsheet_id:
         st.warning("⚠️ Google Sheets Spreadsheet ID is missing")
         st.info("💡 The spreadsheet ID is the long string in your Google Sheets URL (e.g., 1u6xIltHLEO-cfrFwCNVFL2726nRwaAMD90aqAbZKjgQ)")
+    else:
+        st.success(f"✅ Google Sheets Spreadsheet ID: {spreadsheet_id}")
     
     if not credentials_json:
         st.warning("⚠️ Google Service Account credentials are missing")

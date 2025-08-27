@@ -244,6 +244,12 @@ class Settings(BaseSettings):
         }
         
         super().__init__(**merged_config)
+        
+        # Ensure Google Sheets config is properly set from environment variables
+        if not self.google_sheets.spreadsheet_id:
+            env_spreadsheet_id = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID") or os.getenv("GOOGLE_SPREADSHEET_ID")
+            if env_spreadsheet_id:
+                self.google_sheets.spreadsheet_id = env_spreadsheet_id
     
     def _process_llm_configs(self, config_data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         """Process LLM configurations with environment variable support."""
