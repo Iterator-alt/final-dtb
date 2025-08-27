@@ -705,6 +705,22 @@ def main():
                     st.write("**Settings loaded:** ✅")
                     st.write(f"**Target brand:** {st.session_state.api.settings.brand.target_brand}")
                     st.write(f"**Spreadsheet ID:** {st.session_state.api.settings.google_sheets.spreadsheet_id}")
+                    
+                    # Debug environment variables
+                    st.markdown("**Environment Variables:**")
+                    import os
+                    st.write(f"GOOGLE_SHEETS_SPREADSHEET_ID: {os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', 'Not found')}")
+                    st.write(f"GOOGLE_SPREADSHEET_ID: {os.getenv('GOOGLE_SPREADSHEET_ID', 'Not found')}")
+                    
+                    # Debug Google Sheets config
+                    st.markdown("**Google Sheets Config:**")
+                    gs_config = st.session_state.api.settings.google_sheets
+                    st.write(f"Spreadsheet ID: '{gs_config.spreadsheet_id}'")
+                    st.write(f"Credentials File: '{gs_config.credentials_file}'")
+                    st.write(f"Worksheet Name: '{gs_config.worksheet_name}'")
+                    st.write(f"Auto Setup Headers: {gs_config.auto_setup_headers}")
+                    st.write(f"Batch Size: {gs_config.batch_size}")
+                    st.write(f"Enable Validation: {gs_config.enable_validation}")
                 else:
                     st.write("**Settings loaded:** ❌")
                 

@@ -323,7 +323,13 @@ class Settings(BaseSettings):
     def _process_google_sheets_config(self, config_data: Dict[str, Any]) -> GoogleSheetsConfig:
         """Process Google Sheets configuration."""
         yaml_gs = config_data.get("google_sheets", {}) or {}
-        spreadsheet_id = os.getenv("GOOGLE_SPREADSHEET_ID") or yaml_gs.get("spreadsheet_id", "")
+        
+        # Check multiple possible environment variable names for spreadsheet ID
+        spreadsheet_id = (
+            os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID") or  # Streamlit Cloud secret name
+            os.getenv("GOOGLE_SPREADSHEET_ID") or         # Alternative name
+            yaml_gs.get("spreadsheet_id", "")             # From YAML config
+        )
         
         return GoogleSheetsConfig(
             spreadsheet_id=spreadsheet_id,
